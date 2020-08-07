@@ -5,5 +5,5 @@
 # Protocol files
 protocol*.txt
 
-# Log files
-logs/*.log
+# Loot files
+#loot/*.*
