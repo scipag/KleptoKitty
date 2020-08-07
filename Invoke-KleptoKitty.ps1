@@ -341,10 +341,10 @@
         )
 
         Switch($Type) {
-            "Log"   {$RandomName = "de_ch", "setupmod", "en_ir", "Synaptics.MD", "fr_ch", "unso" | Get-Random; Break}
+            "Log"   {$RandomName = "de_ch", "setupmod", "en_ir", "Synaptics.MD", "fr_ch", "unso", "nI-NL" | Get-Random; Break}
             Default {$RandomName = "AdmTmpl", "agentactivationruntimestarter", "CallHistoryClient", "EasPolicyManagerBrokerPS", "LockScreenData", "MsSpellCheckingFacility", "ReAgentTask" | Get-Random;}
         }
-        
+                
         $RandomName 
     }
 
