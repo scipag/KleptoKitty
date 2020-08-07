@@ -1,3 +1,8 @@
+<#
+     =^._.^=
+    _(      )/  KleptoKitty
+#>
+
 $ProtocolPath = "C:\Windows\kleptokitty.log"
 
 $Time = Get-Date -Format G

@@ -5,8 +5,8 @@
 
     How to build payload:
 
-    1. Get SqlDumper from a Microsoft SQL server installation or Office365
-    https://support.microsoft.com/en-us/help/917825/use-the-sqldumper-exe-utility-to-generate-a-dump-file-in-sql-server   
+    1.	Get SqlDumper from a Microsoft SQL server installation or Office365
+    	https://support.microsoft.com/en-us/help/917825/use-the-sqldumper-exe-utility-to-generate-a-dump-file-in-sql-server   
 
 #>
 

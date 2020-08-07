@@ -5,18 +5,17 @@
 
     How to build payload:
 
-    1. Get Invoke-Mimikatz from Empire Framework
-       https://github.com/BC-SECURITY/Empire/blob/master/data/module_source/credentials/
+    1.  Get Invoke-Mimikatz from Empire Framework
+        https://github.com/BC-SECURITY/Empire/blob/master/data/module_source/credentials/
     
-    2. Use Mimikatz in script or replace it by your own version
-       Build Mimikatz from code (Target Second_Release_PowerShell), convert powerkatz.dll to base64 and replace $PEBytes32 and $PEBytes64
+    2.  Use Mimikatz in script or replace it by your own version
+        Build Mimikatz from code (Target Second_Release_PowerShell), convert powerkatz.dll to base64 and replace $PEBytes32 and $PEBytes64
    
-    3. Strip comments and use a harmless-sounding name for the script
+    3.  Strip comments and use a harmless-sounding name for the script
 
-    4. Use mimidrv from Mimikatz, or build your own and sign it
-    https://github.com/gentilkiwi/mimikatz
-    https://www.scip.ch/en/?labs.20190919
-
+    4.  Use mimidrv from Mimikatz, or build your own and sign it
+        https://github.com/gentilkiwi/mimikatz
+        https://www.scip.ch/en/?labs.20190919
 #>
 
 Function FormerlyKnownAsMimikatz {

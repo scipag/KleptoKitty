@@ -5,9 +5,8 @@
 
     How to build payload:
 
-    1. Encrypt CredentialAccess-Mimikatz by using helpers/Invoke-Rijndael.ps1
-    2. Copy Token to KleptoKitty, Token is concatenated from passphrase, salt, and init
-
+    1.  Encrypt CredentialAccess-Mimikatz by using helpers/Invoke-Rijndael.ps1
+    2.  Copy Token to KleptoKitty, Token is concatenated from passphrase, salt, and init
 #>
 
 [CmdletBinding()]
