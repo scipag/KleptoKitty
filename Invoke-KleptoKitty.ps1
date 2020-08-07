@@ -226,6 +226,9 @@
             global parameter RemoteCommandExecution is used. Optionally, the payload can be
             executed Base64 encoded. This obscures arguments, but can also be an indicator for
             a malicious action. The choice is yours.
+
+            Warning: Payload encoding is not supported for WinRM right now!
+
         #>
 
         [CmdletBinding()]
@@ -281,11 +284,9 @@
             }
         } ElseIf ($RemoteCommandExecution -eq "PSRemoting") {
             try {
-                # $Session = New-PSSession -ComputerName $ComputerName -credential $Cred
-                # $Job = Invoke-Command -Session $Session -Scriptblock $Script
-                # Remove-PSSession -Session $Session
-                Write-ProtocolEntry -Text "I'm sorry Dave, I'm afraid I can't do that. Function not implemented yet." -LogLevel "Error"
-                $ReturnCode = $false
+                $Session = New-PSSession -ComputerName $Hostname -Credential $AdminCredential
+                $Job = Invoke-Command -Session $Session -Scriptblock $PayloadCommand
+                Remove-PSSession -Session $Session                
             } catch {
                 $ErrorReason = $_.Exception.Message
                 Write-ProtocolEntry -Text "PSRemoting connection to $Hostname failed. Reason: $ErrorReason" -LogLevel "Error"
